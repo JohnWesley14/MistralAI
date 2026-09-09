@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat com Mistral (Ollama + LLPhant)</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+        #chat-box { border: 1px solid #ccc; padding: 20px; min-height: 200px; margin-bottom: 10px; background: #f9f9f9; border-radius: 8px; white-space: pre-wrap; line-height: 1.5; }
+        input[type="text"] { width: calc(100% - 100px); padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+
+    <h2>Converse com o Mistral</h2>
+    
+    <div id="chat-box"></div>
+    
+    <div style="display: flex; gap: 10px;">
+        <input type="text" id="prompt" placeholder="Digite sua pergunta..." onkeypress="handleEnter(event)">
+        <button id="send-btn" onclick="sendMessage()">Enviar</button>
+    </div>
+
+    <script>
+        // Permite enviar apertando "Enter"
+        function handleEnter(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+       async function sendMessage() {
+    const inputField = document.getElementById('prompt');
+    const chatBox = document.getElementById('chat-box');
+    const sendBtn = document.getElementById('send-btn');
+    
+    const prompt = inputField.value.trim();
+    if (!prompt) return;
+
+    inputField.value = '';
+    inputField.disabled = true;
+    sendBtn.disabled = true;
+    
+    // Adiciona a sua pergunta
+    chatBox.innerHTML += `<b>Você:</b> ${prompt}\n<b>Mistral:</b> `;
+    
+    // Cria um elemento (span) exclusivo para a resposta do Mistral
+    const responseSpan = document.createElement('span');
+    chatBox.appendChild(responseSpan);
+
+    try {
+        const response = await fetch('stream.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: prompt })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        // --- INÍCIO DA FILA DE DIGITAÇÃO ---
+        let messageQueue = "";
+        let isFinished = false;
+
+        // Imprime 1 caractere a cada 15 milissegundos
+        const typingInterval = setInterval(() => {
+            if (messageQueue.length > 0) {
+                // Pega a primeira letra da fila e coloca na tela
+                responseSpan.textContent += messageQueue.charAt(0);
+                // Remove essa letra da fila
+                messageQueue = messageQueue.slice(1);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            } else if (isFinished) {
+                // Só para o temporizador quando a rede terminar E a fila esvaziar
+                clearInterval(typingInterval);
+                chatBox.innerHTML += '\n\n';
+                
+                // Restaura a interface
+                inputField.disabled = false;
+                sendBtn.disabled = false;
+                inputField.focus();
+            }
+        }, 15); 
+
+        // Lê a rede assim que os blocos chegam e joga na fila
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                isFinished = true;
+                break;
+            }
+            messageQueue += decoder.decode(value, { stream: true });
+        }
+        // --- FIM DA FILA DE DIGITAÇÃO ---
+
+    } catch (error) {
+        chatBox.innerHTML += `<span style="color: red;">Erro ao conectar.</span>\n\n`;
+        console.error(error);
+        inputField.disabled = false;
+        sendBtn.disabled = false;
+    }
+}
+    </script>
+</body>
+</html>

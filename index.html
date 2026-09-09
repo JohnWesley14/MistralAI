@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat IA com Mistral</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background-color: #f0f2f5; }
+        h2 { color: #333; }
+        #chat-box { background: white; border-radius: 8px; padding: 20px; min-height: 250px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); white-space: pre-wrap; line-height: 1.6; font-size: 16px; color: #2c3e50; }
+        .blinking-cursor { display: inline-block; width: 8px; height: 18px; background-color: #333; animation: blink 1s step-end infinite; vertical-align: middle; }
+        @keyframes blink { 50% { opacity: 0; } }
+        form { display: flex; flex-direction: column; gap: 10px; }
+        textarea { width: 100%; height: 80px; padding: 15px; border-radius: 8px; border: 1px solid #ccc; font-size: 16px; resize: none; box-sizing: border-box; font-family: inherit;}
+        button { align-self: flex-end; padding: 12px 30px; background: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: background 0.3s; }
+        button:disabled { background: #95a5a6; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #0056b3; }
+    </style>
+</head>
+<body>
+
+    <h2>Conversa Local - Mistral (Ollama)</h2>
+    
+    <!-- Local onde a resposta será renderizada -->
+    <div id="chat-box">Sua resposta aparecerá aqui...</div>
+    
+    <!-- Formulário do usuário -->
+    <form id="chat-form">
+        <textarea id="prompt" placeholder="Digite sua pergunta..." required></textarea>
+        <button type="submit" id="btn-submit">Enviar</button>
+    </form>
+
+    <script>
+        const form = document.getElementById('chat-form');
+        const promptInput = document.getElementById('prompt');
+        const chatBox = document.getElementById('chat-box');
+        const btnSubmit = document.getElementById('btn-submit');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const promptText = promptInput.value;
+            chatBox.innerHTML = '<span class="blinking-cursor"></span>'; // Cursor piscando
+            btnSubmit.disabled = true;
+            btnSubmit.innerText = 'Processando...';
+
+            try {
+                // Dispara a requisição para o PHP
+                const response = await fetch('chat.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'prompt=' + encodeURIComponent(promptText)
+                });
+
+                // Inicializa a leitura do stream (pacotes que chegam contínuos)
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                chatBox.innerHTML = ''; // Limpa antes de começar a escrever
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break; // Sai do loop quando o PHP parar de enviar
+                    
+                    // Decodifica o pedaço de texto que acabou de chegar
+                    const chunk = decoder.decode(value, { stream: true });
+                    
+                    // Concatena no HTML diretamente
+                    chatBox.innerHTML += chunk; 
+                }
+            } catch (error) {
+                chatBox.innerHTML = '<span style="color:red">Erro ao comunicar com a IA. Verifique se o servidor PHP e o Ollama estão rodando.</span>';
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.innerText = 'Enviar';
+                promptInput.value = ''; // Limpa o campo para a próxima pergunta
+            }
+        });
+    </script>
+</body>
+</html>

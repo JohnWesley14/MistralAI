@@ -1,19 +1,24 @@
 <?php
-// Desativa qualquer buffer de saída do PHP
+// Remove o limite de tempo do PHP (30s) para requisições longas
+set_time_limit(0);
+ini_set('max_execution_time', 0);
+
+// Desativa o buffer do PHP
 @ini_set('output_buffering', 'off');
 @ini_set('zlib.output_compression', 0);
 @ini_set('implicit_flush', 1);
-ob_implicit_flush(1);
 
-// Limpa todos os buffers abertos silenciosamente
 while (ob_get_level() > 0) {
     ob_end_clean();
 }
 
-// octet-stream força o Apache a não agrupar os pacotes como faria com textos
-header('Content-Type: application/octet-stream');
+// Restante do cabeçalho SSE...
+header('Content-Type: text/event-stream; charset=utf-8');
 header('Cache-Control: no-cache');
+header('Connection: keep-alive');
 header('X-Accel-Buffering: no');
+
+// ... (mantenha o restante do código com o fopen)
 
 $data = json_decode(file_get_contents('php://input'), true);
 $prompt = $data['prompt'] ?? '';
@@ -22,7 +27,6 @@ if (empty($prompt)) {
     exit;
 }
 
-// Prepara a requisição HTTP nativa (sem cURL)
 $options = [
     'http' => [
         'method'  => 'POST',
@@ -30,6 +34,7 @@ $options = [
         'content' => json_encode([
             'model'  => 'mistral',
             'prompt' => $prompt,
+            'system' => "Responda somente em português ou inglês, seja conciso e direto",
             'stream' => true
         ]),
         'timeout' => 300
@@ -40,19 +45,18 @@ $context = stream_context_create($options);
 $stream  = @fopen('http://localhost:11434/api/generate', 'r', false, $context);
 
 if (!$stream) {
-    echo "Erro: Não foi possível conectar ao Ollama. Verifique se ele está rodando na porta 11434.";
+    echo "data: Erro ao conectar ao Ollama.\n\n";
+    flush();
     exit;
 }
 
-// Lê e envia linha por linha em tempo real
 while (!feof($stream)) {
     $line = fgets($stream);
     if ($line !== false) {
         $json = json_decode($line, true);
         if (isset($json['response'])) {
-            echo $json['response'];
-
-            if (ob_get_level() > 0) ob_flush();
+            // Formato oficial do protocolo SSE
+            echo "data: " . json_encode($json['response']) . "\n\n";
             flush();
         }
     }

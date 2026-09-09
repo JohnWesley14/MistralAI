@@ -77,10 +77,8 @@
             inputField.disabled = true;
             sendBtn.disabled = true;
 
-            // Adiciona a sua pergunta
             chatBox.innerHTML += `<b>Você:</b> ${prompt}\n<b>Mistral:</b> `;
 
-            // Cria um elemento (span) exclusivo para a resposta do Mistral
             const responseSpan = document.createElement('span');
             chatBox.appendChild(responseSpan);
 
@@ -94,43 +92,57 @@
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder('utf-8');
 
-                // --- INÍCIO DA FILA DE DIGITAÇÃO ---
                 let messageQueue = "";
                 let isFinished = false;
 
-                // Imprime 1 caractere a cada 15 milissegundos
+                // Frequência adaptativa: esvazia a fila de forma constante
                 const typingInterval = setInterval(() => {
                     if (messageQueue.length > 0) {
-                        // Pega a primeira letra da fila e coloca na tela
-                        responseSpan.textContent += messageQueue.charAt(0);
-                        // Remove essa letra da fila
-                        messageQueue = messageQueue.slice(1);
+                        // Se a fila acumulou muito texto, imprime mais caracteres por ciclo
+                        let charsToTake = 1;
+                        if (messageQueue.length > 30) charsToTake = 4;
+                        else if (messageQueue.length > 10) charsToTake = 2;
+
+                        responseSpan.textContent += messageQueue.slice(0, charsToTake);
+                        messageQueue = messageQueue.slice(charsToTake);
                         chatBox.scrollTop = chatBox.scrollHeight;
                     } else if (isFinished) {
-                        // Só para o temporizador quando a rede terminar E a fila esvaziar
                         clearInterval(typingInterval);
                         chatBox.innerHTML += '\n\n';
-
-                        // Restaura a interface
                         inputField.disabled = false;
                         sendBtn.disabled = false;
                         inputField.focus();
                     }
-                }, 15);
+                }, 12); // Executa a cada 12ms
 
-                // Lê a rede assim que os blocos chegam e joga na fila
+                let buffer = "";
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) {
                         isFinished = true;
                         break;
                     }
-                    messageQueue += decoder.decode(value, { stream: true });
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Decodifica as linhas no formato 'data: "texto"' do SSE
+                    const lines = buffer.split("\n\n");
+                    buffer = lines.pop(); // Guarda pedaços incompletos de dados
+
+                    for (const line of lines) {
+                        if (line.startsWith("data: ")) {
+                            try {
+                                const parsed = JSON.parse(line.replace("data: ", ""));
+                                messageQueue += parsed;
+                            } catch (e) {
+                                // Ignora falhas pontuais de parse de pacotes incompletos
+                            }
+                        }
+                    }
                 }
-                // --- FIM DA FILA DE DIGITAÇÃO ---
 
             } catch (error) {
-                chatBox.innerHTML += `<span style="color: red;">Erro ao conectar.</span>\n\n`;
+                chatBox.innerHTML += `<span style="color: red;">Erro na requisição.</span>\n\n`;
                 console.error(error);
                 inputField.disabled = false;
                 sendBtn.disabled = false;

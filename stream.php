@@ -51,7 +51,7 @@ while (!feof($stream)) {
         $json = json_decode($line, true);
         if (isset($json['response'])) {
             echo $json['response'];
-            
+
             if (ob_get_level() > 0) ob_flush();
             flush();
         }

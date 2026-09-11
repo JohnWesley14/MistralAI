@@ -3,152 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leitor de Processos/Documentos</title>
-    <!-- Importa a biblioteca do PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <title>Análise de Processos em PDF com IA</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background-color: #f0f2f5; }
         .card { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h2 { color: #333; margin-top: 0; }
         .form-group { margin-bottom: 20px; }
-        /* Adicionamos a tag visual indicando o PDF */
-        input[type="file"] { display: block; margin-top: 10px; width: 100%; padding: 10px; border: 1px dashed #ccc; border-radius: 5px; cursor: pointer; }
+        input[type="file"] { display: block; margin-top: 10px; width: 100%; padding: 10px; border: 2px dashed #007bff; border-radius: 5px; cursor: pointer; background: #f8fbff; }
         button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.3s; }
         button:disabled { background: #95a5a6; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #0056b3; }
         
         #resultado-box { margin-top: 20px; padding: 20px; border-radius: 8px; background: #eef2f3; display: none; white-space: pre-wrap; font-size: 15px; color: #2c3e50; border-left: 4px solid #007bff; }
         .loading { text-align: center; font-weight: bold; color: #007bff; display: none; margin-top: 20px; }
-        #preview-img { max-width: 100%; margin-top: 10px; border-radius: 5px; border: 1px solid #ddd; display: none; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>Extrair Dados de Documentos</h2>
-        <p>Faça upload de um documento (PDF, JPG, PNG).</p>
+        <h2>Leitor Inteligente de PDF</h2>
+        <p>Faça upload de um documento PDF para análise completa do processo.</p>
         
         <form id="upload-form">
             <div class="form-group">
-                <!-- Agora aceita .pdf também -->
-                <input type="file" id="imagem" accept=".pdf, image/jpeg, image/png, image/webp" required>
-                <img id="preview-img" alt="Preview">
+                <!-- Limitado estritamente a PDF -->
+                <input type="file" id="arquivo_pdf" accept=".pdf" required>
             </div>
-            <button type="submit" id="btn-submit">Analisar Documento</button>
+            <button type="submit" id="btn-submit">Analisar PDF</button>
         </form>
 
-        <div id="loading" class="loading">⏳ Lendo documento, aguarde...</div>
+        <div id="loading" class="loading">⏳ Lendo documento e processando com IA, aguarde...</div>
         <div id="resultado-box"></div>
     </div>
 
     <script>
-        // Configura a engine do PDF.js
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
         const form = document.getElementById('upload-form');
-        const imagemInput = document.getElementById('imagem');
-        const previewImg = document.getElementById('preview-img');
+        const arquivoInput = document.getElementById('arquivo_pdf');
         const btnSubmit = document.getElementById('btn-submit');
         const resultadoBox = document.getElementById('resultado-box');
         const loading = document.getElementById('loading');
 
-        let arquivoProntoBlob = null;
-
-        imagemInput.addEventListener('change', async function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            // Se for PDF
-            if (file.type === 'application/pdf') {
-                const fileReader = new FileReader();
-                fileReader.onload = async function() {
-                    const typedarray = new Uint8Array(this.result);
-                    
-                    // Carrega o PDF
-                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                    
-                    // Pega a página 1
-                    const page = await pdf.getPage(1);
-                    
-                    // Escala 2.0 gera uma imagem de alta qualidade, perfeita para o OCR ler
-                    const viewport = page.getViewport({ scale: 2.0 });
-                    
-                    const canvas = document.createElement('canvas');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    const ctx = canvas.getContext('2d');
-                    
-                    // Desenha o PDF no Canvas
-                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                    
-                    // Mostra o preview
-                    previewImg.src = canvas.toDataURL('image/jpeg');
-                    previewImg.style.display = 'block';
-
-                    // Salva a imagem convertida para enviar ao servidor
-                    canvas.toBlob((blob) => {
-                        arquivoProntoBlob = blob;
-                    }, 'image/jpeg', 0.9);
-                };
-                fileReader.readAsArrayBuffer(file);
-            } 
-            // Se for imagem comum (o código de antes)
-            else {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        const canvas = document.createElement('canvas');
-                        const max_size = 1500;
-                        let width = img.width;
-                        let height = img.height;
-
-                        if (width > height && width > max_size) {
-                            height *= max_size / width;
-                            width = max_size;
-                        } else if (height > max_size) {
-                            width *= max_size / height;
-                            height = max_size;
-                        }
-
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-
-                        previewImg.src = canvas.toDataURL('image/jpeg');
-                        previewImg.style.display = 'block';
-
-                        canvas.toBlob((blob) => {
-                            arquivoProntoBlob = blob;
-                        }, 'image/jpeg', 0.8);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            if (!arquivoProntoBlob) return;
+            const file = arquivoInput.files[0];
+            if (!file) return;
 
             const formData = new FormData();
-            formData.append('imagem', arquivoProntoBlob, 'documento.jpg');
+            formData.append('pdf', file);
 
             btnSubmit.disabled = true;
             loading.style.display = 'block';
             resultadoBox.style.display = 'none';
 
             try {
-                const response = await fetch('processa_imagem.php', {
+                // Manda o arquivo bruto para o backend
+                const response = await fetch('processa_pdf.php', {
                     method: 'POST',
                     body: formData
                 });
 
                 const textoResultado = await response.text();
                 
-                resultadoBox.innerHTML = '<strong>Resultado:</strong><br><br>' + textoResultado;
+                resultadoBox.innerHTML = '<strong>Resultado da Análise:</strong><br><br>' + textoResultado;
                 resultadoBox.style.display = 'block';
             } catch (error) {
                 resultadoBox.innerHTML = '<span style="color:red">Erro ao conectar ao servidor.</span>';

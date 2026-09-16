@@ -9,7 +9,7 @@ function analisarTextoComOllama($textoExtraido) {
                  $textoExtraido;
 
     $payload = json_encode([
-        'model'   => 'mistral-nemo:latest',
+        'model'   => 'qwen2.5:1.5b',
         'format'  => 'json',
         'prompt'  => $instrucao,
         'stream'  => false,

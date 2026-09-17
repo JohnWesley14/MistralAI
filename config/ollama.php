@@ -1,5 +1,7 @@
 <?php
 function analisarTextoComOllama($textoExtraido) {
+    $inicio = microtime(true);
+
     $instrucao = "Analise o texto do documento abaixo. " .
                  "Retorne os dados extraídos EXCLUSIVAMENTE em um objeto JSON válido, contendo as seguintes chaves:\n" .
                  "\"titulo\": \"(Escreva aqui o título ou assunto)\",\n" .
@@ -9,14 +11,14 @@ function analisarTextoComOllama($textoExtraido) {
                  $textoExtraido;
 
     $payload = json_encode([
-        'model'   => 'qwen2.5:1.5b',
+        'model'   => 'qwen2.5:3b',
         'format'  => 'json',
         'prompt'  => $instrucao,
         'stream'  => false,
         'options' => [
             'temperature' => 0.0,
-            'num_ctx'     => 4096,
-            'num_predict' => 250
+            'num_ctx'     => 1024,
+            'num_predict' => 300
         ]
     ]);
 
@@ -46,8 +48,23 @@ function analisarTextoComOllama($textoExtraido) {
     $dados = json_decode($respostaJson, true);
     
     if (!isset($dados['response'])) {
-        throw new Exception("Resposta inválida do Ollama.");
+        throw new Exception("Resposta inválida ou vazia do Ollama.");
     }
 
-    return json_decode($dados['response'], true);
+    // Converte a string JSON que o Ollama gerou
+    $dadosExtraidos = json_decode($dados['response'], true);
+
+    // Trava de segurança se o modelo gerar texto corrompido
+    if (!is_array($dadosExtraidos)) {
+        throw new Exception("A IA gerou uma resposta fora do formato JSON esperado.");
+    }
+
+    $fim = microtime(true);
+    $tempoIa = round($fim - $inicio, 2);
+
+    // Retorna a estrutura exata que o processar_item.php exige
+    return [
+        'dados'    => $dadosExtraidos,
+        'tempo_ia' => $tempoIa
+    ];
 }

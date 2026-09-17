@@ -1,2 +1,4 @@
 vendor/
 temp_*.jpg
+uploads/*
+!uploads/.gitkeep

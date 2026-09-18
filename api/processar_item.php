@@ -1,6 +1,11 @@
 <?php
+
 ob_start();
 error_reporting(0);
+
+// Remove o limite de tempo de execução do PHP para esta requisição
+set_time_limit(600); 
+ini_set('max_execution_time', '600');
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../vendor/autoload.php';

@@ -11,7 +11,7 @@ function analisarTextoComOllama($textoExtraido) {
                  $textoExtraido;
 
     $payload = json_encode([
-        'model'   => 'qwen2.5:3b',
+        'model'   => 'gemma2:latest ',
         'format'  => 'json',
         'prompt'  => $instrucao,
         'stream'  => false,
@@ -26,25 +26,24 @@ function analisarTextoComOllama($textoExtraido) {
         throw new Exception("Erro ao gerar pacote de dados JSON: " . json_last_error_msg());
     }
 
-    $options = [
+   $options = [
         'http' => [
             'method'        => 'POST',
             'header'        => "Content-Type: application/json\r\n" .
                                "Content-Length: " . strlen($payload) . "\r\n",
             'content'       => $payload,
             'ignore_errors' => true,
-            'timeout'       => 300
+            'timeout'       => 600 
         ]
     ];
 
     $context = stream_context_create($options);
     $respostaJson = @file_get_contents('http://127.0.0.1:11434/api/generate', false, $context);
 
-    if ($respostaJson === false) {
-        $erro = error_get_last();
-        throw new Exception("Falha de comunicação com o Ollama: " . ($erro['message'] ?? 'Erro desconhecido.'));
+    // Se o Ollama não responder nada ou cair por falta de RAM
+    if ($respostaJson === false || empty($respostaJson)) {
+        throw new Exception("A IA demorou demais para responder ou o processo foi encerrado por falta de memória RAM.");
     }
-
     $dados = json_decode($respostaJson, true);
     
     if (!isset($dados['response'])) {
